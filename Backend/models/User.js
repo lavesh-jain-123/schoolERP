@@ -47,6 +47,10 @@ const userSchema = new mongoose.Schema(
       canDeleteFees: { type: Boolean, default: false },
       canViewPendingFees: { type: Boolean, default: false },
       canSendFeeReminders: { type: Boolean, default: false },
+
+         // Family permissions - NEW
+      canViewFamilies: { type: Boolean, default: false },
+      canManageFamilies: { type: Boolean, default: false },
       
       // User management (admin only)
       canManageUsers: { type: Boolean, default: false },
@@ -91,6 +95,8 @@ userSchema.pre('save', function (next) {
       canDeleteFees: false,
       canViewPendingFees: false,
       canSendFeeReminders: false,
+      canViewFamilies: false,
+      canManageFamilies: false,
       canManageUsers: false,
     };
   } else if (this.role === 'fee_collector') {
@@ -104,6 +110,8 @@ userSchema.pre('save', function (next) {
       canDeleteFees: false,
       canViewPendingFees: true,
       canSendFeeReminders: true,
+      canViewFamilies: true, // Can view families to collect fees
+      canManageFamilies: false,
       canManageUsers: false,
     };
   }

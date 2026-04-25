@@ -7,16 +7,16 @@ router.use(protect);
 
 router
   .route('/')
-  .get(checkPermission('canViewStudents'), c.getFamilies)
-  .post(checkPermission('canAddStudents'), c.createFamily);
+  .get(checkPermission('canViewFamilies'), c.getFamilies)
+  .post(checkPermission('canManageFamilies'), c.createFamily);
 
-router.post('/:id/add-student', checkPermission('canEditStudents'), c.addStudentToFamily);
-router.post('/:id/remove-student', checkPermission('canEditStudents'), c.removeStudentFromFamily);
+router.post('/:id/add-student', checkPermission('canManageFamilies'), c.addStudentToFamily);
+router.post('/:id/remove-student', checkPermission('canManageFamilies'), c.removeStudentFromFamily);
 
 router
   .route('/:id')
-  .get(checkPermission('canViewStudents'), c.getFamily)
-  .put(checkPermission('canEditStudents'), c.updateFamily)
-  .delete(checkPermission('canDeleteStudents'), c.deleteFamily);
+  .get(checkPermission('canViewFamilies'), c.getFamily)
+  .put(checkPermission('canManageFamilies'), c.updateFamily)
+  .delete(checkPermission('canManageFamilies'), c.deleteFamily);
 
 module.exports = router;

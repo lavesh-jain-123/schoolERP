@@ -52,14 +52,13 @@ function Layout({ children }) {
     showSuccess('Logged out successfully');
   };
 
-  const menuItems = [
-   
-     { text: 'Students', icon: <People />, path: '/students', permission: 'canViewStudents' },
-  { text: 'Families', icon: <Group />, path: '/families', permission: 'canViewStudents' }, // NEW
+ const menuItems = [
+  { text: 'Students', icon: <People />, path: '/students', permission: 'canViewStudents' },
+  { text: 'Families', icon: <Group />, path: '/families', permission: 'canViewFamilies' }, // CHANGED
   { text: 'Fee Payments', icon: <Payment />, path: '/fees', permission: 'canViewFees' },
   { text: 'Pending Fees', icon: <Warning />, path: '/pending-fees', permission: 'canViewPendingFees' },
   { text: 'Users', icon: <ManageAccounts />, path: '/users', permission: 'canManageUsers' },
-  ].filter(item => hasPermission(item.permission));
+].filter(item => hasPermission(item.permission));
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -228,10 +227,10 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
+       <Route
   path="/families"
   element={
-    <ProtectedRoute permission="canViewStudents">
+    <ProtectedRoute permission="canViewFamilies">
       <FamilyList />
     </ProtectedRoute>
   }

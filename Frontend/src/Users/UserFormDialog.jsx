@@ -26,6 +26,10 @@ const permissionGroups = {
     { key: 'canViewPendingFees', label: 'View Pending Fees' },
     { key: 'canSendFeeReminders', label: 'Send Fee Reminders' },
   ],
+  'Family Management': [  // NEW
+    { key: 'canViewFamilies', label: 'View Families' },
+    { key: 'canManageFamilies', label: 'Manage Families (Add/Edit/Delete)' },
+  ],
   'User Management': [
     { key: 'canManageUsers', label: 'Manage Users' },
   ],

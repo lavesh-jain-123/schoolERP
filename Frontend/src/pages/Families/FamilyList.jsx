@@ -7,6 +7,7 @@ import { Add, Edit, Delete, Search, People } from '@mui/icons-material';
 import api from '../../api/axios';
 import FamilyFormDialog from './FamilyFormDialog';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function FamilyList() {
   const [families, setFamilies] = useState([]);
@@ -14,6 +15,7 @@ export default function FamilyList() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const { showSuccess } = useToast();
+   const { hasPermission } = useAuth(); 
 
   const load = async () => {
     const { data } = await api.get('/families', { params: { search } });
@@ -41,6 +43,7 @@ export default function FamilyList() {
             Group siblings and manage family information
           </Typography>
         </Box>
+          {hasPermission('canManageFamilies') && (
         <Button
           variant="contained"
           color="secondary"
@@ -49,6 +52,7 @@ export default function FamilyList() {
         >
           Add Family
         </Button>
+          )}
       </Stack>
 
       <TextField
@@ -74,7 +78,7 @@ export default function FamilyList() {
             <TableCell>Contact</TableCell>
             <TableCell>Students</TableCell>
             <TableCell>Created</TableCell>
-            <TableCell align="right">Actions</TableCell>
+         {hasPermission('canManageFamilies') && (      <TableCell align="right">Actions</TableCell> )}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -112,6 +116,7 @@ export default function FamilyList() {
               <TableCell>
                 {new Date(fam.createdAt).toLocaleDateString()}
               </TableCell>
+               {hasPermission('canManageFamilies') && (
               <TableCell align="right">
                 <IconButton
                   color="primary"
@@ -122,7 +127,7 @@ export default function FamilyList() {
                 <IconButton color="error" onClick={() => handleDelete(fam._id)}>
                   <Delete />
                 </IconButton>
-              </TableCell>
+              </TableCell> )}
             </TableRow>
           ))}
           {families.length === 0 && (
