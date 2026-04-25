@@ -46,15 +46,21 @@ export default function Login() {
     >
       <Card sx={{ maxWidth: 450, width: '100%', boxShadow: 6 }}>
         <CardContent sx={{ p: 4 }}>
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <School sx={{ fontSize: 60, color: '#8fc750', mb: 1 }} />
-            <Typography variant="h4" fontWeight={700} color="primary" gutterBottom>
-              School ERP
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Management System Login
-            </Typography>
-          </Box>
+         <Box sx={{ textAlign: 'center', mb: 4 }}>
+  <img 
+    src={`${window.location.origin}/logo.jpeg`} 
+    alt="logo"
+    style={{ width: 80, marginBottom: 10 }}
+  />
+
+  <Typography variant="h4" fontWeight={700} color="primary" gutterBottom>
+    The Dimension Public School
+  </Typography>
+
+  <Typography variant="body2" color="text.secondary">
+    Management System Login
+  </Typography>
+</Box>
 
           {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 

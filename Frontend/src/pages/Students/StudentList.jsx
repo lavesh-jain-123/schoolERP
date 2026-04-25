@@ -21,8 +21,26 @@ export default function StudentList() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [feeOpen, setFeeOpen] = useState(false);
-  const [feeStudent, setFeeStudent] = useState(null);
-   const { showSuccess, showError } = useToast();
+ 
+const [feeStudent, setFeeStudent] = useState(null);
+const [loadingFee, setLoadingFee] = useState(false);
+const { showSuccess, showError } = useToast();
+
+const handleCollectFee = async (student) => {
+  setLoadingFee(true);
+  try {
+    console.log('Original student:', student);
+    const { data } = await api.get(`/students/${student._id}`);
+    console.log('Loaded student with family:', data.data);
+    setFeeStudent(data.data);
+    setFeeOpen(true);
+  } catch (err) {
+    showError('Failed to load student details');
+    console.error('Failed to load student:', err);
+  } finally {
+    setLoadingFee(false);
+  }
+};
 
   const load = async () => {
     const params = {};
@@ -70,7 +88,7 @@ export default function StudentList() {
       load();
     }, 100);
   };
-
+ 
   // Extract unique classes and sections from all students
   const uniqueClasses = [...new Set(allStudents.map(s => s.className))].filter(Boolean).sort();
   const uniqueSections = [...new Set(allStudents.map(s => s.section))].filter(Boolean).sort();
@@ -271,14 +289,15 @@ export default function StudentList() {
                     />
                   </TableCell>
                   <TableCell align="right">
-                    <IconButton
-                      color="secondary"
-                      title="Collect Fee"
-                      onClick={() => { setFeeStudent(s); setFeeOpen(true); }}
-                      sx={{ '&:hover': { bgcolor: '#8fc75020' } }}
-                    >
-                      <Payments />
-                    </IconButton>
+                   <IconButton
+  color="secondary"
+  title="Collect Fee"
+  onClick={() => handleCollectFee(s)}
+  disabled={loadingFee}
+  sx={{ '&:hover': { bgcolor: '#8fc75020' } }}
+>
+  <Payments />
+</IconButton>
                     <IconButton
                       color="primary"
                       title="Edit"

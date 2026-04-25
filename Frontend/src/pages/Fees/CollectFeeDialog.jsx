@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
   Grid, MenuItem, Alert, Typography, Box, FormControlLabel, Checkbox, IconButton,
-  Select, Chip, OutlinedInput
+  Select, Chip, OutlinedInput, Autocomplete
 } from '@mui/material';
-import { QrCodeScanner, Close } from '@mui/icons-material';
+import { QrCodeScanner, Close, Group } from '@mui/icons-material';
 import api from '../../api/axios';
+import { useToast } from '../../context/ToastContext';
 
 const feeTypes = ['Tuition', 'Transport', 'Exam', 'Admission', 'Library', 'Other'];
 const modes = ['Cash', 'UPI', 'Card', 'Cheque', 'Bank Transfer'];
@@ -21,10 +22,14 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
   const [qrOpen, setQrOpen] = useState(false);
   const [unpaidMonths, setUnpaidMonths] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [siblings, setSiblings] = useState([]);
+  const [selectedSiblings, setSelectedSiblings] = useState([]);
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
     if (open && student) {
       loadUnpaidMonths();
+      loadSiblings();
       setForm({
         amount: student.monthlyFee || '',
         feeType: 'Tuition',
@@ -35,12 +40,49 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
         remarks: '',
         sendSms: true,
       });
+      setSelectedSiblings([student._id]); // Pre-select current student
       setErr('');
       setResult(null);
       setQrOpen(false);
     }
     // eslint-disable-next-line
   }, [open, student]);
+
+const loadSiblings = async () => {
+  if (!student?._id || !student?.family) {
+    console.log('No family found:', { studentId: student?._id, family: student?.family });
+    return;
+  }
+  
+  try {
+    // Extract family ID - handle both populated object and ID string
+    const familyId = typeof student.family === 'object' ? student.family._id : student.family;
+    
+    console.log('Loading family:', familyId);
+    
+    // If family is already populated with students, use it directly
+    if (typeof student.family === 'object' && student.family.students) {
+      console.log('Family already populated:', student.family);
+      const allSiblings = student.family.students || [];
+      const filtered = allSiblings.filter(s => s._id !== student._id && s.status === 'Active');
+      console.log('Filtered siblings:', filtered);
+      setSiblings(filtered);
+      return;
+    }
+    
+    // Otherwise fetch the family
+    const { data } = await api.get(`/families/${familyId}`);
+    console.log('Family data:', data.data);
+    const allSiblings = data.data.students || [];
+    console.log('All siblings:', allSiblings);
+    const filtered = allSiblings.filter(s => s._id !== student._id && s.status === 'Active');
+    console.log('Filtered siblings:', filtered);
+    setSiblings(filtered);
+  } catch (e) {
+    console.error('Failed to load siblings:', e);
+    setSiblings([]);
+  }
+};
 
   const loadUnpaidMonths = async () => {
     if (!student?._id) return;
@@ -63,6 +105,14 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
     setForm({ ...form, months: typeof value === 'string' ? value.split(',') : value });
   };
 
+  const toggleSibling = (siblingId) => {
+    setSelectedSiblings(prev => 
+      prev.includes(siblingId)
+        ? prev.filter(id => id !== siblingId)
+        : [...prev, siblingId]
+    );
+  };
+
   const submit = async () => {
     if (form.months.length === 0) {
       setErr('Please select at least one month');
@@ -72,14 +122,30 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
     setSaving(true);
     setErr('');
     try {
-      const { data } = await api.post('/fees', { 
-        studentId: student._id, 
+      const payload = {
         ...form,
-        months: form.months, // Send as array
-      });
+        months: form.months,
+      };
+
+      // If multiple students selected, use studentIds, otherwise studentId
+      if (selectedSiblings.length > 1) {
+        payload.studentIds = selectedSiblings;
+      } else {
+        payload.studentId = student._id;
+      }
+
+      const { data } = await api.post('/fees', payload);
       setResult(data.data);
+      
+      const studentCount = data.data.studentsCovered?.length || 1;
+      showSuccess(
+        studentCount > 1
+          ? `Fee collected for ${studentCount} students. Total: ₹${data.data.totalAmount}`
+          : `Fee collected successfully. Receipt: ${data.data.receiptNo}`
+      );
+      
       onSaved?.(data.data);
-      loadUnpaidMonths(); // Refresh unpaid months
+      loadUnpaidMonths();
     } catch (e) {
       setErr(e.response?.data?.message || e.message);
     } finally {
@@ -89,20 +155,30 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
 
   if (!student) return null;
 
-  const totalAmount = (form.amount || 0) * (form.months?.length || 0);
+  const totalAmount = (form.amount || 0) * (form.months?.length || 0) * selectedSiblings.length;
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
         <DialogTitle sx={{ bgcolor: '#1C2C56', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>Collect Fee — {student.firstName} {student.lastName}</span>
-          <IconButton
-            onClick={() => setQrOpen(true)}
-            sx={{ color: '#8fc750' }}
-            title="Show Payment QR Code"
-          >
-            <QrCodeScanner />
-          </IconButton>
+          <Box>
+            {siblings.length > 0 && (
+              <Chip
+                icon={<Group />}
+                label={`${siblings.length} sibling${siblings.length > 1 ? 's' : ''}`}
+                size="small"
+                sx={{ bgcolor: '#8fc750', color: '#1C2C56', mr: 1, fontWeight: 600 }}
+              />
+            )}
+            <IconButton
+              onClick={() => setQrOpen(true)}
+              sx={{ color: '#8fc750' }}
+              title="Show Payment QR Code"
+            >
+              <QrCodeScanner />
+            </IconButton>
+          </Box>
         </DialogTitle>
 
         <DialogContent dividers>
@@ -111,17 +187,69 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
               <b>Adm No:</b> {student.admissionNo} &nbsp;|&nbsp;
               <b>Class:</b> {student.className}-{student.section} &nbsp;|&nbsp;
               <b>Parent:</b> {student.parentName} ({student.parentMobile})
+              {student.family && siblings.length > 0 && (
+                <>
+                  <br />
+                  <b>Family ID:</b> {student.family.familyId || student.family}
+                </>
+              )}
             </Typography>
           </Box>
 
           {err && <Alert severity="error" sx={{ mb: 2 }}>{err}</Alert>}
 
+          {/* Sibling Selection */}
+          {siblings.length > 0 && !result && (
+            <Box sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+              <Typography variant="subtitle2" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Group /> Pay for Siblings Together
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                Select multiple students to collect combined fee payment
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                <Chip
+                  label={`${student.firstName} ${student.lastName} (Current)`}
+                  color="primary"
+                  size="small"
+                  sx={{ fontWeight: 600 }}
+                />
+                {siblings.map(sib => (
+                  <Chip
+                    key={sib._id}
+                    label={`${sib.firstName} ${sib.lastName} - ${sib.className}${sib.section}`}
+                    onClick={() => toggleSibling(sib._id)}
+                    color={selectedSiblings.includes(sib._id) ? 'secondary' : 'default'}
+                    variant={selectedSiblings.includes(sib._id) ? 'filled' : 'outlined'}
+                    size="small"
+                  />
+                ))}
+              </Box>
+              {selectedSiblings.length > 1 && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  <Typography variant="caption">
+                    Fee will be collected for <b>{selectedSiblings.length} students</b>. 
+                    One SMS will be sent to parent with combined summary.
+                  </Typography>
+                </Alert>
+              )}
+            </Box>
+          )}
+
           {result ? (
             <Alert severity={result.smsStatus === 'Sent' ? 'success' : 'warning'}>
               <Typography variant="body2" fontWeight={600}>
-                {result.totalPayments} receipt(s) created successfully
+                {result.totalPayments} receipt(s) created for {result.totalStudents} student(s)
               </Typography>
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
+              {result.studentsCovered && (
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  Students: <b>{result.studentsCovered.map(s => s.name).join(', ')}</b>
+                </Typography>
+              )}
+              <Typography variant="body2">
+                Total Amount: <b>₹{result.totalAmount?.toLocaleString()}</b>
+              </Typography>
+              <Typography variant="body2">
                 Receipts: <b>{result.allReceipts?.join(', ')}</b>
               </Typography>
               <Typography variant="body2">
@@ -137,7 +265,6 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
             </Alert>
           ) : (
             <Grid container spacing={2}>
-              {/* Unpaid Months Multi-Select */}
               <Grid item xs={12}>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
                   Select Month(s) *
@@ -172,7 +299,7 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
                 </Select>
                 {unpaidMonths.length > 0 && (
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                    {unpaidMonths.length} unpaid month(s) available
+                    {unpaidMonths.length} unpaid month(s) available for {student.firstName}
                   </Typography>
                 )}
               </Grid>
@@ -192,14 +319,13 @@ export default function CollectFeeDialog({ open, onClose, student, onSaved }) {
                 </TextField>
               </Grid>
 
-              {/* Total Amount Display */}
               {form.months.length > 0 && form.amount > 0 && (
                 <Grid item xs={12}>
                   <Alert severity="info" sx={{ py: 1 }}>
                     <Typography variant="body2">
                       <b>Total Amount:</b> ₹{totalAmount.toLocaleString()} 
                       <Typography component="span" variant="caption" sx={{ ml: 1 }}>
-                        ({form.months.length} month(s) × ₹{form.amount})
+                        ({selectedSiblings.length} student(s) × {form.months.length} month(s) × ₹{form.amount})
                       </Typography>
                     </Typography>
                   </Alert>

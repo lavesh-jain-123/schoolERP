@@ -1,3 +1,4 @@
+
 const mongoose = require('mongoose');
 
 const studentSchema = new mongoose.Schema(
@@ -13,17 +14,25 @@ const studentSchema = new mongoose.Schema(
     lastName: { type: String, trim: true, default: '' },
     dob: { type: Date },
     gender: { type: String, enum: ['Male', 'Female', 'Other'] },
-    className: { type: String, required: true, trim: true }, // e.g. "5"
+    className: { type: String, required: true, trim: true },
     section: { type: String, default: 'A', trim: true },
     rollNo: { type: String, trim: true },
-    parentName: { type: String, required: true, trim: true },
+    
+    // Family reference - NEW
+    family: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Family',
+    },
+    
+    // Individual parent details (optional if family is set)
+    parentName: { type: String, trim: true },
     parentMobile: {
       type: String,
-      required: true,
       match: [/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'],
     },
     parentEmail: { type: String, lowercase: true, trim: true },
     address: { type: String, trim: true },
+    
     admissionDate: { type: Date, default: Date.now },
     monthlyFee: { type: Number, default: 0, min: 0 },
     status: {

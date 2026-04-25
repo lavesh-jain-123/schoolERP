@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
-  Grid, MenuItem, Alert
+  Grid, MenuItem, Alert, Typography
 } from '@mui/material';
 import api from '../../api/axios';
+import { Autocomplete } from '@mui/material';
 
 const empty = {
   admissionNo: '', firstName: '', lastName: '', gender: 'Male',
@@ -16,12 +17,23 @@ export default function StudentFormDialog({ open, onClose, student, onSaved }) {
   const [form, setForm] = useState(empty);
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
+  const [families, setFamilies] = useState([]);
 
   useEffect(() => {
+     loadFamilies();
     if (student) setForm({ ...empty, ...student });
     else setForm(empty);
     setErr('');
   }, [student, open]);
+
+  const loadFamilies = async () => {
+  try {
+    const { data } = await api.get('/families');
+    setFamilies(data.data);
+  } catch (e) {
+    console.error('Failed to load families:', e);
+  }
+};
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -93,6 +105,20 @@ export default function StudentFormDialog({ open, onClose, student, onSaved }) {
           <Grid item xs={12}>
             <TextField fullWidth multiline rows={2} label="Address" value={form.address} onChange={set('address')} />
           </Grid>
+          <Grid item xs={12}>
+  <Autocomplete
+    options={families}
+    getOptionLabel={(f) => `${f.familyId} - ${f.parentName} (${f.parentMobile})`}
+    value={families.find(f => f._id === form.family) || null}
+    onChange={(e, val) => setForm({ ...form, family: val?._id || null })}
+    renderInput={(params) => (
+      <TextField {...params} label="Link to Family (Optional)" />
+    )}
+  />
+  <Typography variant="caption" color="text.secondary">
+    Link this student to a family group for sibling fee payments
+  </Typography>
+</Grid>
         </Grid>
       </DialogContent>
       <DialogActions>

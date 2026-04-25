@@ -12,6 +12,7 @@ import {
   Payment,
   Warning,
   Logout,
+  Group,
   ManageAccounts,
 } from '@mui/icons-material';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -24,6 +25,8 @@ import StudentList from './pages/Students/StudentList';
 import FeeList from './pages/Fees/FeeList';
 import PendingFeesList from './pages/Fees/PendingFeesList';
 import UserList from './Users/UserList';
+import FamilyList from './pages/Families/FamilyList';
+
 
 const theme = createTheme({
   palette: {
@@ -50,10 +53,12 @@ function Layout({ children }) {
   };
 
   const menuItems = [
-    { text: 'Students', icon: <People />, path: '/students', permission: 'canViewStudents' },
-    { text: 'Fee Payments', icon: <Payment />, path: '/fees', permission: 'canViewFees' },
-    { text: 'Pending Fees', icon: <Warning />, path: '/pending-fees', permission: 'canViewPendingFees' },
-    { text: 'Users', icon: <ManageAccounts />, path: '/users', permission: 'canManageUsers' },
+   
+     { text: 'Students', icon: <People />, path: '/students', permission: 'canViewStudents' },
+  { text: 'Families', icon: <Group />, path: '/families', permission: 'canViewStudents' }, // NEW
+  { text: 'Fee Payments', icon: <Payment />, path: '/fees', permission: 'canViewFees' },
+  { text: 'Pending Fees', icon: <Warning />, path: '/pending-fees', permission: 'canViewPendingFees' },
+  { text: 'Users', icon: <ManageAccounts />, path: '/users', permission: 'canManageUsers' },
   ].filter(item => hasPermission(item.permission));
 
   return (
@@ -182,6 +187,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+
       </Routes>
     );
   }
@@ -222,6 +228,14 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+  path="/families"
+  element={
+    <ProtectedRoute permission="canViewStudents">
+      <FamilyList />
+    </ProtectedRoute>
+  }
+/>
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

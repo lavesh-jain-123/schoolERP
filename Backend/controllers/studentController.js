@@ -1,5 +1,6 @@
 const Student = require('../models/Student');
 const FeePayment = require('../models/FeePayment');
+const Family = require('../models/Family'); // ADD THIS
 // GET /api/students?search=&className=&status=
 exports.getStudents = async (req, res, next) => {
   try {
@@ -24,11 +25,22 @@ exports.getStudents = async (req, res, next) => {
 };
 
 // GET /api/students/:id
+// GET /api/students/:id - Get single student
 exports.getStudent = async (req, res, next) => {
   try {
-    const student = await Student.findById(req.params.id);
-    if (!student)
-      return res.status(404).json({ success: false, message: 'Not found' });
+    const student = await Student.findById(req.params.id)
+      .populate({
+        path: 'family',
+        populate: {
+          path: 'students',
+          select: 'admissionNo firstName lastName className section monthlyFee status'
+        }
+      });
+    
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    
     res.json({ success: true, data: student });
   } catch (err) {
     next(err);
@@ -39,37 +51,87 @@ exports.getStudent = async (req, res, next) => {
 exports.createStudent = async (req, res, next) => {
   try {
     const student = await Student.create(req.body);
+    
+    // If family is specified, add student to family's students array
+    if (student.family) {
+      await Family.findByIdAndUpdate(
+        student.family,
+        { $addToSet: { students: student._id } } // $addToSet prevents duplicates
+      );
+    }
+    
     res.status(201).json({ success: true, data: student });
   } catch (err) {
-    if (err.code === 11000)
-      return res
-        .status(400)
-        .json({ success: false, message: 'Admission No already exists' });
+    if (err.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admission number already exists',
+      });
+    }
     next(err);
   }
 };
-
 // PUT /api/students/:id
 exports.updateStudent = async (req, res, next) => {
   try {
-    const student = await Student.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!student)
-      return res.status(404).json({ success: false, message: 'Not found' });
+    const oldStudent = await Student.findById(req.params.id);
+    
+    if (!oldStudent) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    
+    const oldFamily = oldStudent.family;
+    const newFamily = req.body.family;
+    
+    // Update student
+    const student = await Student.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    // Sync family relationships
+    if (oldFamily && oldFamily.toString() !== newFamily?.toString()) {
+      // Remove from old family
+      await Family.findByIdAndUpdate(
+        oldFamily,
+        { $pull: { students: student._id } }
+      );
+    }
+    
+    if (newFamily && oldFamily?.toString() !== newFamily.toString()) {
+      // Add to new family
+      await Family.findByIdAndUpdate(
+        newFamily,
+        { $addToSet: { students: student._id } }
+      );
+    }
+    
     res.json({ success: true, data: student });
   } catch (err) {
     next(err);
   }
 };
 
-// DELETE /api/students/:id
+// DELETE /api/students/:id - Delete student
 exports.deleteStudent = async (req, res, next) => {
   try {
-    const student = await Student.findByIdAndDelete(req.params.id);
-    if (!student)
-      return res.status(404).json({ success: false, message: 'Not found' });
+    const student = await Student.findById(req.params.id);
+    
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    
+    // Remove from family if linked
+    if (student.family) {
+      await Family.findByIdAndUpdate(
+        student.family,
+        { $pull: { students: student._id } }
+      );
+    }
+    
+    await student.deleteOne();
+    
     res.json({ success: true, message: 'Student deleted' });
   } catch (err) {
     next(err);

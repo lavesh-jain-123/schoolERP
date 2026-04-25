@@ -32,14 +32,15 @@ exports.getFee = async (req, res, next) => {
   }
 };
 
-// POST /api/fees  — collect fee payment(s) and auto-send SMS
+// POST /api/fees - Collect fee for one or multiple students (siblings)
 exports.collectFee = async (req, res, next) => {
   try {
     const {
-      studentId,
+      studentIds, // Array of student IDs for sibling payments
+      studentId, // Single student ID (backward compatible)
       amount,
       feeType,
-      months, // Now accepts array of months
+      months,
       academicYear,
       paymentMode,
       transactionId,
@@ -47,72 +48,96 @@ exports.collectFee = async (req, res, next) => {
       sendSms = true,
     } = req.body;
 
-    const student = await Student.findById(studentId);
-    if (!student)
-      return res.status(404).json({ success: false, message: 'Student not found' });
+    // Support both single and multiple students
+    const students = studentIds 
+      ? await Student.find({ _id: { $in: studentIds } }).populate('family')
+      : [await Student.findById(studentId).populate('family')];
 
-    // If months is an array, create multiple payments (one per month)
+    if (students.some(s => !s)) {
+      return res.status(404).json({ success: false, message: 'One or more students not found' });
+    }
+
     const monthsArray = Array.isArray(months) ? months : [months];
-    const createdPayments = [];
+    const allCreatedPayments = [];
+    let totalAmount = 0;
 
-    for (const month of monthsArray) {
-      const payment = await FeePayment.create({
-        student: student._id,
-        amount,
-        feeType,
-        month,
-        academicYear,
-        paymentMode,
-        transactionId,
-        remarks,
-        smsStatus: sendSms ? 'Pending' : 'Not Sent',
-      });
-      createdPayments.push(payment);
+    // Create payments for each student
+    for (const student of students) {
+      const studentAmount = amount || student.monthlyFee || 0;
+      totalAmount += studentAmount * monthsArray.length;
+
+      for (const month of monthsArray) {
+        const payment = await FeePayment.create({
+          student: student._id,
+          amount: studentAmount,
+          feeType,
+          month,
+          academicYear,
+          paymentMode,
+          transactionId,
+          remarks: `${remarks || ''}${students.length > 1 ? ' [Family Payment]' : ''}`.trim(),
+          smsStatus: sendSms ? 'Pending' : 'Not Sent',
+        });
+        allCreatedPayments.push(payment);
+      }
     }
 
-    // Send SMS only once with total summary
+    // Send SMS - use family contact if available
     let smsResult = { success: false };
-    if (sendSms) {
-      const totalAmount = amount * monthsArray.length;
-      const monthsText = monthsArray.length === 1 
-        ? monthsArray[0] 
-        : `${monthsArray.length} months (${monthsArray.join(', ')})`;
+    if (sendSms && students.length > 0) {
+      const firstStudent = students[0];
+      const parentMobile = firstStudent.family?.parentMobile || firstStudent.parentMobile;
+      const parentName = firstStudent.family?.parentName || firstStudent.parentName;
 
-      smsResult = await sendFeePaymentSMS({
-        parentMobile: student.parentMobile,
-        parentName: student.parentName,
-        studentName: `${student.firstName} ${student.lastName}`.trim(),
-        amount: totalAmount,
-        receiptNo: createdPayments.map(p => p.receiptNo).join(', '),
-        month: monthsText,
-      });
+      if (parentMobile) {
+        const studentNames = students.map(s => `${s.firstName} ${s.lastName}`.trim()).join(', ');
+        const monthsText = monthsArray.length === 1 
+          ? monthsArray[0] 
+          : `${monthsArray.length} months`;
 
-      // Update SMS status for all created payments
-      const smsStatus = smsResult.success ? 'Sent' : 'Failed';
-      const smsSentAt = smsResult.success ? new Date() : undefined;
-      const smsError = smsResult.success ? undefined : smsResult.error;
+        smsResult = await sendFeePaymentSMS({
+          parentMobile,
+          parentName,
+          studentName: students.length > 1 ? `${students.length} students (${studentNames})` : studentNames,
+          amount: totalAmount,
+          receiptNo: allCreatedPayments.map(p => p.receiptNo).slice(0, 3).join(', ') + (allCreatedPayments.length > 3 ? '...' : ''),
+          month: monthsText,
+        });
 
-      await FeePayment.updateMany(
-        { _id: { $in: createdPayments.map(p => p._id) } },
-        { smsStatus, smsSentAt, smsError }
-      );
+        // Update SMS status
+        const smsStatus = smsResult.success ? 'Sent' : 'Failed';
+        const smsSentAt = smsResult.success ? new Date() : undefined;
+        const smsError = smsResult.success ? undefined : smsResult.error;
+
+        await FeePayment.updateMany(
+          { _id: { $in: allCreatedPayments.map(p => p._id) } },
+          { smsStatus, smsSentAt, smsError }
+        );
+      }
     }
 
-    // Return the first payment with populated student data
-    const populated = await FeePayment.findById(createdPayments[0]._id).populate(
+    // Return summary
+    const populated = await FeePayment.findById(allCreatedPayments[0]._id).populate(
       'student',
       'admissionNo firstName lastName className section parentName parentMobile'
     );
 
-    // Add summary info
-    const responseData = {
-      ...populated.toObject(),
-      totalPayments: createdPayments.length,
-      allReceipts: createdPayments.map(p => p.receiptNo),
-      monthsCovered: monthsArray,
-    };
-
-    res.status(201).json({ success: true, data: responseData });
+    res.status(201).json({
+      success: true,
+      data: {
+        ...populated.toObject(),
+        totalPayments: allCreatedPayments.length,
+        totalStudents: students.length,
+        totalAmount,
+        allReceipts: allCreatedPayments.map(p => p.receiptNo),
+        monthsCovered: monthsArray,
+        studentsCovered: students.map(s => ({
+          id: s._id,
+          name: `${s.firstName} ${s.lastName}`.trim(),
+          admissionNo: s.admissionNo,
+        })),
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -162,11 +187,11 @@ exports.deleteFee = async (req, res, next) => {
 // GET /api/fees/unpaid-months/:studentId
 exports.getUnpaidMonths = async (req, res, next) => {
   try {
-    const student = await Student.findById(req.params.studentId);
+    const student = await Student.findById(req.params.studentId).populate('family'); // ADD .populate('family')
+    
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
-
     // Get all paid months for this student (Tuition only)
     const paidPayments = await FeePayment.find({
       student: student._id,
