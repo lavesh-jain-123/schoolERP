@@ -2,6 +2,11 @@ const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
+console.log('Configuring Cloudinary...');
+console.log('Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME || 'NOT SET');
+console.log('API Key:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET');
+console.log('API Secret:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET');
+
 // Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -13,11 +18,11 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'school-erp/students', // Folder in Cloudinary
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    folder: 'school-erp/students',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
     transformation: [
-      { width: 500, height: 500, crop: 'limit' }, // Resize to max 500x500
-      { quality: 'auto' } // Auto quality optimization
+      { width: 500, height: 500, crop: 'limit' },
+      { quality: 'auto' }
     ],
   },
 });
@@ -28,6 +33,12 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
+    console.log('Multer fileFilter - File:', {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+    });
+
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
@@ -35,5 +46,7 @@ const upload = multer({
     }
   },
 });
+
+console.log('✅ Cloudinary and Multer configured');
 
 module.exports = { cloudinary, upload };

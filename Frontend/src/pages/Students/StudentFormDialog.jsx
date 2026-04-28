@@ -75,52 +75,72 @@ export default function StudentFormDialog({ open, onClose, student, onSaved }) {
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-  const handlePhotoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+ const handlePhotoUpload = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
 
-    // Validate file size (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      showError('Photo size must be less than 5MB');
-      return;
-    }
+  console.log('Selected file:', {
+    name: file.name,
+    size: file.size,
+    type: file.type
+  });
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      showError('Only image files are allowed');
-      return;
-    }
+  // Validate file size (5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    showError('Photo size must be less than 5MB');
+    return;
+  }
 
-    setUploading(true);
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    showError('Only image files are allowed');
+    return;
+  }
+
+  setUploading(true);
+  setUploadProgress(0);
+
+  try {
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    console.log('Sending request to:', '/upload/student-photo');
+    console.log('FormData entries:', Array.from(formData.entries()));
+
+    const { data } = await api.post('/upload/student-photo', formData, {
+      headers: { 
+        'Content-Type': 'multipart/form-data' 
+      },
+      onUploadProgress: (progressEvent) => {
+        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        setUploadProgress(percent);
+        console.log('Upload progress:', percent + '%');
+      },
+    });
+
+    console.log('Upload SUCCESS:', data);
+
+    setForm({
+      ...form,
+      photo: {
+        url: data.data.url,
+        publicId: data.data.publicId,
+      },
+    });
+    showSuccess('Photo uploaded successfully');
+  } catch (e) {
+    console.error('Upload FAILED - Full error:', e);
+    console.error('Error response:', e.response);
+    console.error('Error data:', e.response?.data);
+    console.error('Error message:', e.message);
+    
+    const errorMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Photo upload failed';
+    showError(errorMsg);
+  } finally {
+    setUploading(false);
     setUploadProgress(0);
-
-    try {
-      const formData = new FormData();
-      formData.append('photo', file);
-
-      const { data } = await api.post('/upload/student-photo', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(percent);
-        },
-      });
-
-      setForm({
-        ...form,
-        photo: {
-          url: data.data.url,
-          publicId: data.data.publicId,
-        },
-      });
-      showSuccess('Photo uploaded successfully');
-    } catch (e) {
-      showError(e.response?.data?.message || 'Photo upload failed');
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
-    }
-  };
+  }
+};
 
   const handlePhotoDelete = async () => {
     if (!form.photo?.publicId) {
