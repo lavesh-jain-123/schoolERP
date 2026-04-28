@@ -20,6 +20,7 @@ app.use('/api/students', require('./routes/studentRoutes'));
 app.use('/api/fees', require('./routes/feeRoutes'));
 app.use('/api/families', require('./routes/familyRoutes'));
 app.use(require('./middleware/errorHandler'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server on http://localhost:${PORT}`));

@@ -17,6 +17,11 @@ const studentSchema = new mongoose.Schema(
     className: { type: String, required: true, trim: true },
     section: { type: String, default: 'A', trim: true },
     rollNo: { type: String, trim: true },
+
+     photo: {
+      url: { type: String },
+      publicId: { type: String },
+    },
     
     // Family reference - NEW
     family: {

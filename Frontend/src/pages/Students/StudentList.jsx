@@ -8,6 +8,10 @@ import api from '../../api/axios';
 import StudentFormDialog from './StudentFormDialog';
 import CollectFeeDialog from '../Fees/CollectFeeDialog';
 import { useToast } from '../../context/ToastContext';
+import { Badge } from '@mui/icons-material'; // Add this import
+import IDCard from '../../components/IDCard'; // Add this import
+import {Avatar} from '@mui/material';
+import { printIDCard } from '../../utils/printIDCard'; 
 
 export default function StudentList() {
   const [students, setStudents] = useState([]);
@@ -25,6 +29,7 @@ export default function StudentList() {
 const [feeStudent, setFeeStudent] = useState(null);
 const [loadingFee, setLoadingFee] = useState(false);
 const { showSuccess, showError } = useToast();
+ const [idCardStudent, setIdCardStudent] = useState(null); 
 
 const handleCollectFee = async (student) => {
   setLoadingFee(true);
@@ -68,6 +73,17 @@ const handleCollectFee = async (student) => {
   const loadAll = async () => {
     const { data } = await api.get('/students');
     setAllStudents(data.data);
+  };
+
+   const handlePrintIDCard = async (student) => {
+    try {
+      // Load full student data if needed
+      const { data } = await api.get(`/students/${student._id}`);
+      printIDCard(data.data);
+    } catch (err) {
+      showError('Failed to load student details');
+      console.error('Failed to load student:', err);
+    }
   };
 
   useEffect(() => {
@@ -241,6 +257,7 @@ const handleCollectFee = async (student) => {
           <Table size="small">
             <TableHead>
               <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: '#1C2C56', color: '#fff' } }}>
+               <TableCell>Photo</TableCell>
                 <TableCell>Adm. No</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Class</TableCell>
@@ -261,6 +278,14 @@ const handleCollectFee = async (student) => {
                     transition: 'background-color 0.2s',
                   }}
                 >
+                    <TableCell>
+                <Avatar
+                  src={s.photo?.url}
+                  sx={{ width: 40, height: 40, border: '2px solid #1C2C56' }}
+                >
+                  {s.firstName?.[0]}{s.lastName?.[0]}
+                </Avatar>
+              </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>{s.admissionNo}</TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight={600}>
@@ -289,6 +314,14 @@ const handleCollectFee = async (student) => {
                     />
                   </TableCell>
                   <TableCell align="right">
+                        <IconButton
+                      color="info"
+                      title="Generate ID Card"
+                      onClick={() => handlePrintIDCard(s)}
+                      sx={{ '&:hover': { bgcolor: '#2196f320' } }}
+                    >
+                      <Badge />
+                    </IconButton>
                    <IconButton
   color="secondary"
   title="Collect Fee"
@@ -356,6 +389,7 @@ const handleCollectFee = async (student) => {
     showSuccess(`Fee collected successfully. Receipt: ${data.receiptNo}`);
   }}
       />
+      
     </Box>
   );
 }
