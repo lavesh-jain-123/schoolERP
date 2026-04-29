@@ -28,11 +28,11 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    role: {
-      type: String,
-      enum: ['admin', 'student_entry', 'fee_collector', 'custom'],
-      default: 'custom',
-    },
+   role: {
+  type: String,
+  enum: ['admin', 'student_entry', 'fee_collector', 'parent', 'custom'], // ADD 'parent'
+  default: 'custom',
+},
     // Granular permissions for custom roles
     permissions: {
       // Student permissions
