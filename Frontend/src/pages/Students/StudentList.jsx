@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
   Box, Paper, Typography, Button, TextField, Table, TableBody, TableCell,
-  TableHead, TableRow, IconButton, Chip, Stack, Grid, MenuItem, Card, CardContent
+  TableHead, TableRow, IconButton, Chip, Stack, Grid, MenuItem, Card, CardContent,
+  CircularProgress
 } from '@mui/material';
-import { Add, Edit, Delete, Payments, Search, FilterAlt, Clear } from '@mui/icons-material';
+import { Add, Edit, Delete, Payments, Search, FilterAlt, Clear, Download } from '@mui/icons-material';
 import api from '../../api/axios';
 import StudentFormDialog from './StudentFormDialog';
 import CollectFeeDialog from '../Fees/CollectFeeDialog';
 import { useToast } from '../../context/ToastContext';
-import { Badge } from '@mui/icons-material'; // Add this import
-import IDCard from '../../components/IDCard'; // Add this import
-import {Avatar} from '@mui/material';
-import { printIDCard } from '../../utils/printIDCard'; 
+import { Badge } from '@mui/icons-material';
+import IDCard from '../../components/IDCard';
+import { Avatar } from '@mui/material';
+import { printIDCard, printBulkIDCards } from '../../utils/printIDCard';
 
 export default function StudentList() {
   const [students, setStudents] = useState([]);
@@ -25,27 +26,27 @@ export default function StudentList() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [feeOpen, setFeeOpen] = useState(false);
- 
-const [feeStudent, setFeeStudent] = useState(null);
-const [loadingFee, setLoadingFee] = useState(false);
-const { showSuccess, showError } = useToast();
- const [idCardStudent, setIdCardStudent] = useState(null); 
+  const [feeStudent, setFeeStudent] = useState(null);
+  const [loadingFee, setLoadingFee] = useState(false);
+  const [loadingBulkIDCards, setLoadingBulkIDCards] = useState(false);
+  const { showSuccess, showError } = useToast();
+  const [idCardStudent, setIdCardStudent] = useState(null);
 
-const handleCollectFee = async (student) => {
-  setLoadingFee(true);
-  try {
-    console.log('Original student:', student);
-    const { data } = await api.get(`/students/${student._id}`);
-    console.log('Loaded student with family:', data.data);
-    setFeeStudent(data.data);
-    setFeeOpen(true);
-  } catch (err) {
-    showError('Failed to load student details');
-    console.error('Failed to load student:', err);
-  } finally {
-    setLoadingFee(false);
-  }
-};
+  const handleCollectFee = async (student) => {
+    setLoadingFee(true);
+    try {
+      console.log('Original student:', student);
+      const { data } = await api.get(`/students/${student._id}`);
+      console.log('Loaded student with family:', data.data);
+      setFeeStudent(data.data);
+      setFeeOpen(true);
+    } catch (err) {
+      showError('Failed to load student details');
+      console.error('Failed to load student:', err);
+    } finally {
+      setLoadingFee(false);
+    }
+  };
 
   const load = async () => {
     const params = {};
@@ -58,7 +59,7 @@ const handleCollectFee = async (student) => {
     setStudents(data.data);
   };
 
-    const handleDelete = async (id) => {
+  const handleDelete = async (id) => {
     if (!window.confirm('Delete this student?')) return;
     try {
       await api.delete(`/students/${id}`);
@@ -70,12 +71,13 @@ const handleCollectFee = async (student) => {
       // Optional: add specific error handling here if needed
     }
   };
+
   const loadAll = async () => {
     const { data } = await api.get('/students');
     setAllStudents(data.data);
   };
 
-   const handlePrintIDCard = async (student) => {
+  const handlePrintIDCard = async (student) => {
     try {
       // Load full student data if needed
       const { data } = await api.get(`/students/${student._id}`);
@@ -86,13 +88,44 @@ const handleCollectFee = async (student) => {
     }
   };
 
+  const handleBulkIDCardDownload = async () => {
+    if (students.length === 0) {
+      showError('No students to generate ID cards for');
+      return;
+    }
+
+    const confirmMessage = `Generate ID cards for ${students.length} student${students.length !== 1 ? 's' : ''}?\n\nThis will open a new window with all ID cards ready to print.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setLoadingBulkIDCards(true);
+    try {
+      // Load full student data for all filtered students
+      const studentPromises = students.map(s => 
+        api.get(`/students/${s._id}`).then(res => res.data.data)
+      );
+      
+      const fullStudentData = await Promise.all(studentPromises);
+      
+      // Call bulk print function - opens new window with all cards
+      printBulkIDCards(fullStudentData);
+      
+      showSuccess(`ID cards ready! Check the new window to print ${students.length} card${students.length !== 1 ? 's' : ''}.`);
+    } catch (err) {
+      showError('Failed to generate bulk ID cards');
+      console.error('Bulk ID card generation error:', err);
+    } finally {
+      setLoadingBulkIDCards(false);
+    }
+  };
+
   useEffect(() => {
     load();
     loadAll();
     // eslint-disable-next-line
   }, []);
-
-  
 
   const setFilter = (key) => (e) => {
     setFilters({ ...filters, [key]: e.target.value });
@@ -104,7 +137,7 @@ const handleCollectFee = async (student) => {
       load();
     }, 100);
   };
- 
+
   // Extract unique classes and sections from all students
   const uniqueClasses = [...new Set(allStudents.map(s => s.className))].filter(Boolean).sort();
   const uniqueSections = [...new Set(allStudents.map(s => s.section))].filter(Boolean).sort();
@@ -155,15 +188,27 @@ const handleCollectFee = async (student) => {
               Showing {students.length} student{students.length !== 1 ? 's' : ''}
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<Add />}
-            onClick={() => { setEditing(null); setFormOpen(true); }}
-            sx={{ boxShadow: 2 }}
-          >
-            Add Student
-          </Button>
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={loadingBulkIDCards ? <CircularProgress size={20} /> : <Download />}
+              onClick={handleBulkIDCardDownload}
+              disabled={loadingBulkIDCards || students.length === 0}
+              sx={{ boxShadow: 1 }}
+            >
+              {loadingBulkIDCards ? 'Loading...' : 'Bulk ID Cards'}
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<Add />}
+              onClick={() => { setEditing(null); setFormOpen(true); }}
+              sx={{ boxShadow: 2 }}
+            >
+              Add Student
+            </Button>
+          </Stack>
         </Stack>
 
         {/* Filters Section */}
@@ -257,7 +302,7 @@ const handleCollectFee = async (student) => {
           <Table size="small">
             <TableHead>
               <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: '#1C2C56', color: '#fff' } }}>
-               <TableCell>Photo</TableCell>
+                <TableCell>Photo</TableCell>
                 <TableCell>Adm. No</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Class</TableCell>
@@ -278,14 +323,14 @@ const handleCollectFee = async (student) => {
                     transition: 'background-color 0.2s',
                   }}
                 >
-                    <TableCell>
-                <Avatar
-                  src={s.photo?.url}
-                  sx={{ width: 40, height: 40, border: '2px solid #1C2C56' }}
-                >
-                  {s.firstName?.[0]}{s.lastName?.[0]}
-                </Avatar>
-              </TableCell>
+                  <TableCell>
+                    <Avatar
+                      src={s.photo?.url}
+                      sx={{ width: 40, height: 40, border: '2px solid #1C2C56' }}
+                    >
+                      {s.firstName?.[0]}{s.lastName?.[0]}
+                    </Avatar>
+                  </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>{s.admissionNo}</TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight={600}>
@@ -314,7 +359,7 @@ const handleCollectFee = async (student) => {
                     />
                   </TableCell>
                   <TableCell align="right">
-                        <IconButton
+                    <IconButton
                       color="info"
                       title="Generate ID Card"
                       onClick={() => handlePrintIDCard(s)}
@@ -322,15 +367,15 @@ const handleCollectFee = async (student) => {
                     >
                       <Badge />
                     </IconButton>
-                   <IconButton
-  color="secondary"
-  title="Collect Fee"
-  onClick={() => handleCollectFee(s)}
-  disabled={loadingFee}
-  sx={{ '&:hover': { bgcolor: '#8fc75020' } }}
->
-  <Payments />
-</IconButton>
+                    <IconButton
+                      color="secondary"
+                      title="Collect Fee"
+                      onClick={() => handleCollectFee(s)}
+                      disabled={loadingFee}
+                      sx={{ '&:hover': { bgcolor: '#8fc75020' } }}
+                    >
+                      <Payments />
+                    </IconButton>
                     <IconButton
                       color="primary"
                       title="Edit"
@@ -352,7 +397,7 @@ const handleCollectFee = async (student) => {
               ))}
               {students.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
                     <Typography variant="body1" color="text.secondary" fontWeight={500}>
                       No students found
                     </Typography>
@@ -371,25 +416,23 @@ const handleCollectFee = async (student) => {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         student={editing}
-      onSaved={() => {
-    setFormOpen(false);
-    showSuccess(editing ? 'Student updated successfully' : 'Student added successfully');
-    load();
-    loadAll();
-  }}
-
+        onSaved={() => {
+          setFormOpen(false);
+          showSuccess(editing ? 'Student updated successfully' : 'Student added successfully');
+          load();
+          loadAll();
+        }}
       />
 
       <CollectFeeDialog
         open={feeOpen}
         onClose={() => setFeeOpen(false)}
         student={feeStudent}
-       onSaved={(data) => {
-    setFeeOpen(false);
-    showSuccess(`Fee collected successfully. Receipt: ${data.receiptNo}`);
-  }}
+        onSaved={(data) => {
+          setFeeOpen(false);
+          showSuccess(`Fee collected successfully. Receipt: ${data.receiptNo}`);
+        }}
       />
-      
     </Box>
   );
 }
