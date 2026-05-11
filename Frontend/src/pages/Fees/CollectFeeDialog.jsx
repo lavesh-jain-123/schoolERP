@@ -18,17 +18,16 @@ const generateMonthOptions = () => {
                       'October', 'November', 'December', 'January', 'February', 'March'];
   
   const now = new Date();
-  const currentMonth = now.getMonth(); // 0-11
+  const currentMonth = now.getMonth(); // 0-11 (JavaScript standard)
   const currentYear = now.getFullYear();
   
-  // Start from April of academic year
-  let startMonth = 3; // April (0-indexed)
-  let startYear = currentMonth >= 3 ? currentYear : currentYear - 1; // Academic year logic
+  // Determine academic year start (April = month 3 in JS)
+  let startYear = currentMonth >= 3 ? currentYear : currentYear - 1;
   
-  // Generate 24 months (2 academic years)
+  // Generate 24 months (2 academic years) starting from April
   for (let i = 0; i < 24; i++) {
-    const monthIndex = (startMonth + i) % 12;
-    const year = startYear + Math.floor((startMonth + i) / 12);
+    const monthIndex = i % 12; // Simply iterate through our monthNames array
+    const year = startYear + Math.floor(i / 12);
     const monthName = monthNames[monthIndex];
     months.push(`${monthName}-${year}`);
   }
